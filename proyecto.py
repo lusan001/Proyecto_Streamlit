@@ -126,10 +126,10 @@ if df_clasificacion is None or df_goleadores is None:   # Si alguna de las llama
 # ──────────────────────────────────────────────
 st.title(f"⚽ Dashboard de Fútbol — {liga_nombre} 🏆")   # Título de la página
 st.caption(f"Última actualización: {datetime.now().strftime('%H:%M:%S')}")  # Pie de página con la hora de la última actualización
-"""
-datetime.now devuelve la fecha y hora actual del sistema.
-Con .strftime('%H:%M:%S') se formatea para mostrar solo la hora, minutos y segundos.
-"""
+
+# datetime.now devuelve la fecha y hora actual del sistema.
+# Con .strftime('%H:%M:%S') se formatea para mostrar solo la hora, minutos y segundos.
+
 st.divider()    # Separador para dividir la cabecera del resto del contenido con una línea horizontal
 
 
