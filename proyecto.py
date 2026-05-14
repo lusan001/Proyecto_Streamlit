@@ -92,6 +92,32 @@ def obtener_goleadores(codigo_liga: str):   # Llama al endpoint de máximos gole
         print(f"Error goleadores: {e}")
         return None
 
+def obtener_partidos(codigo_liga: str):
+    """Llama al endpoint de partidos y devuelve un DataFrame con los resultados.
+    Devuelve None si la API falla.
+    """
+    try:    # este try catch es para manejar cualquier error que pueda ocurrir en la llamada a la API
+        url = f"{BASE_URL}/competitions/{codigo_liga}/matches"  # Endpoint para obtener los partidos de la liga
+        r = requests.get(url, headers=HEADERS, timeout=8)       # Llamada a la API con un timeout de 8 segundos para evitar que se quede colgado
+        r.raise_for_status()                                    # Si la respuesta no es 200, lanza una excepción
+        partidos = r.json()["matches"]  # Lista de partidos obtenida de la respuesta JSON
+        df = pd.DataFrame([             # Crea un DataFrame con los datos de los partidos
+            {
+                "Jornada":   p["matchday"], # Número de jornada
+                "Local":     p["homeTeam"]["shortName"],    # Nombre corto del equipo local
+                "Visitante": p["awayTeam"]["shortName"], # Nombre corto del equipo visitante
+                "Goles L":   p["score"]["fullTime"]["home"], # Goles del equipo local
+                "Goles V":   p["score"]["fullTime"]["away"], # Goles del equipo visitante
+                "Estado":    p["status"], # Estado del partido
+            }
+            for p in partidos
+        ])
+        # Solo partidos ya disputados
+        df = df[df["Estado"] == "FINISHED"].reset_index(drop=True)  # Elimina los partidos no disputados
+        return df
+    except Exception as e:  # Si ocurre cualquier error (conexión, clave, límite), lo muestra y devuelve None
+        print(f"Error partidos: {e}")
+        return None
 
 # ──────────────────────────────────────────────
 # SIDEBAR – CONTROL INTERACTIVO (radio buttons)
@@ -113,9 +139,10 @@ codigo_liga = LIGAS[liga_nombre]   # Código de la liga seleccionada
 # ──────────────────────────────────────────────
 df_clasificacion = obtener_clasificacion(codigo_liga)   # Llama a la función para obtener la clasificación de la liga seleccionada y devuelve un DataFrame
 df_goleadores    = obtener_goleadores(codigo_liga)  # Llama a la función para obtener los máximos goleadores de la liga seleccionada y devuelve un DataFrame
+df_partidos      = obtener_partidos(codigo_liga)   # Llama a la función para obtener los partidos de la liga seleccionada y devuelve un DataFrame
 
 # Si alguna llamada falla, mostrar error y reintentar tras el intervalo
-if df_clasificacion is None or df_goleadores is None:   # Si alguna de las llamadas a la API devuelve None, significa que hubo un error
+if df_clasificacion is None or df_goleadores is None or df_partidos is None:   # Si alguna de las llamadas a la API devuelve None, significa que hubo un error
     st.error("⚠️ No se pudo conectar con la API. Reintentando en 5 minutos...") # Muestra un mensaje de error en la aplicación
     time.sleep(INTERVALO_SEGUNDOS)  # time.sleep para esperar el intervalo definido antes de reintentar
     st.rerun()  # st.rerun() para reiniciar la aplicación y volver a intentar cargar los datos
@@ -248,6 +275,76 @@ st.dataframe(   # Muestra el DataFrame completo de la clasificación
     df_clasificacion.set_index("Pos"),  # Establece la columna "Pos" como el nuevo indice
     use_container_width=True,   # Ajusta el tamaño de la tabla para que ocupe todo el ancho disponible
 )
+
+# ──────────────────────────────────────────────
+# ESTADÍSTICAS INDIVIDUALES — Goleadores y Asistentes
+# ──────────────────────────────────────────────
+st.subheader("🏅 Estadísticas individuales") # Subtitulo de estadisticas individuales
+
+col_gol, col_ast = st.columns(2)    # Divide la página en dos columnas para mostrar las estadísticas individuales de goleadores y asistentes. Si cambio el número, se ajusta el ancho de cada columna automáticamente (2 columnas)
+
+with col_gol:
+    # Ordenar por goles descendente y mostrar top 10
+    top_goleadores = df_goleadores.sort_values("Goles", ascending=False).head(10)
+    fig_goleadores = px.bar( # Crea un gráfico de barras con Plotly Express, utilizando el DataFrame de los 10 máximos goleadores.
+        top_goleadores.sort_values("Goles", ascending=True),    # Ordena los goleadores por número de goles de forma ascendente para que el máximo goleador aparezca arriba en el gráfico de barras
+        x="Goles",  # Eje x representa los goles de cada jugador
+        y="Jugador",    # Eje y representa el nombre del jugador
+        orientation="h",    # Orientación horizontal para que el nombre del jugador se muestre en el eje y y los goles en el eje x
+        color="Goles",  # Color de las barras se basa en el número de goles para crear un esquema de colores continuo
+        color_continuous_scale="Oranges",   # Esquema de colores continuo basado en el número de goles, utilizando la paleta "Oranges"
+        title="🥇 Máximos goleadores", # Titulo
+        labels={"Goles": "Goles", "Jugador": "Jugador"},    # Etiquetas para los ejes
+        template="plotly_dark", # Plantilla oscura para el gráfico
+        text="Goles",   # Etiqueta para mostrar el número de goles en el gráfico
+    )
+    fig_goleadores.update_traces(textposition="outside")    # update_traces para ajustar la posición de las etiquetas de los goles, colocándolas fuera de las barras para que sean más legibles, especialmente en el caso de jugadores con pocos goles donde las etiquetas podrían superponerse con las barras.
+    fig_goleadores.update_layout(coloraxis_showscale=False) # update_layout para ocultar la barra de colores que aparece por defecto cuando se utiliza color_continuous_scale, ya que en este caso no es necesaria para interpretar el gráfico
+    st.plotly_chart(fig_goleadores, use_container_width=True)   # Muestra el gráfico de barras de los máximos goleadores en la aplicación, ajustando su tamaño para que ocupe todo el ancho disponible en la columna izquierda
+
+with col_ast:
+    # Ordenar por asistencias descendente y mostrar top 10
+    top_asistentes = df_goleadores.sort_values("Asist", ascending=False).head(10)
+    fig_asistentes = px.bar(
+        top_asistentes.sort_values("Asist", ascending=True),
+        x="Asist",      # Eje x representa las asistencias de cada jugador
+        y="Jugador",    # Eje y representa el nombre del jugador
+        orientation="h",    # Orientación horizontal para que el nombre del jugador se muestre en el eje y y las asistencias en el eje x
+        color="Asist",  # Color de las barras se basa en el número de asistencias para crear un esquema de colores continuo
+        color_continuous_scale="Blues",  # Esquema de colores continuo basado en el número de asistencias, utilizando la paleta "Blues"
+        title="🎯 Máximos asistentes",  # Titulo
+        labels={"Asist": "Asistencias", "Jugador": "Jugador"},  # Etiquetas para los ejes
+        template="plotly_dark", # Plantilla oscura para el gráfico
+        text="Asist",   # Etiqueta para mostrar el número de asistencias en el gráfico
+    )
+    fig_asistentes.update_traces(textposition="outside")    # update_traces para ajustar la posición de las etiquetas de las asistencias, colocándolas fuera de las barras para que sean más legibles, especialmente en el caso de jugadores con pocas asistencias donde las etiquetas podrían superponerse con las barras.
+    fig_asistentes.update_layout(coloraxis_showscale=False) # update_layout para ocultar la barra de colores que aparece por defecto cuando se utiliza color_continuous_scale, ya que en este caso no es necesaria para interpretar el gráfico
+    st.plotly_chart(fig_asistentes, use_container_width=True)   # Muestra el gráfico de barras de los máximos asistentes en la aplicación, ajustando su tamaño para que ocupe todo el ancho disponible en la columna derecha
+
+st.divider()    # Separador para dividir las estadísticas individuales del resto del contenido con una línea horizontal
+
+# ──────────────────────────────────────────────
+# RESULTADOS POR JORNADA — Slider interactivo
+# ──────────────────────────────────────────────
+st.subheader("📅 Resultados por jornada")    # Subtítulos
+
+jornadas_disponibles = sorted(df_partidos["Jornada"].unique())   # Lista de jornadas disponibles en el DataFrame de partidos, ordenada de forma ascendente. Esto se utiliza para configurar el rango del slider que permite seleccionar la jornada a visualizar.
+
+# Slider para seleccionar la jornada — afecta a la tabla de resultados
+jornada_sel = st.slider(
+    "Selecciona la jornada:",
+    min_value=int(jornadas_disponibles[0]),   # Por defecto la primera jornada
+    max_value=int(jornadas_disponibles[-1]),    # Por defecto la última jornada
+    value=int(jornadas_disponibles[-1]),   # Por defecto la última jornada jugada
+)
+
+# Filtrar y mostrar solo los partidos de la jornada seleccionada
+df_jornada = df_partidos[df_partidos["Jornada"] == jornada_sel][    # Filtra el DataFrame de partidos para mostrar solo los partidos de la jornada seleccionada
+    ["Local", "Goles L", "Goles V", "Visitante"]    # Selecciona las columnas "Local", "Goles L", "Goles V" y "Visitante"
+].reset_index(drop=True)    # Resetea el index para que los partidos se muestren en orden secuencial
+
+# Mostrar la tabla de resultados de la jornada seleccionada, ajustando su tamaño para que ocupe todo el ancho disponible y ocultando el índice de la tabla para una presentación más limpia.
+st.dataframe(df_jornada, use_container_width=True, hide_index=True)
 
 # ──────────────────────────────────────────────
 # ACTUALIZACIÓN AUTOMÁTICA
