@@ -272,7 +272,7 @@ st.divider()    # Separador para dividir los gráficos del resto del contenido c
 # TABLA COMPLETA – Clasificación
 st.subheader("📋 Clasificación completa")    # Subtítulos
 st.dataframe(   # Muestra el DataFrame completo de la clasificación
-    df_clasificacion.set_index("Pos"),  # Establece la columna "Pos" como el nuevo indice
+    df_clasificacion.set_index(),  # Establece la columna "Pos" como el nuevo indice
     use_container_width=True,   # Ajusta el tamaño de la tabla para que ocupe todo el ancho disponible
 )
 
