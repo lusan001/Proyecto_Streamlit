@@ -124,7 +124,7 @@ def obtener_partidos(codigo_liga: str):
 # ──────────────────────────────────────────────
 with st.sidebar: # Contenido del sidebar para seleccionar la liga
     st.header("⚙️ Configuración") # Título del sidebar
-    liga_nombre = st.selectbox( # Radio buttons para seleccionar la liga, con las opciones definidas en el diccionario LIGAS
+    liga_nombre = st.radio( # Radio buttons para seleccionar la liga, con las opciones definidas en el diccionario LIGAS
         "Selecciona la liga:",
         options=list(LIGAS.keys()), # Lista de nombres de las ligas para mostrar en el radio buttons
     )
